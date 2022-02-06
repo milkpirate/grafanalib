@@ -2,7 +2,13 @@
 Changelog
 =========
 
-0.6.1 (TBD)
+* Added percentage type for thresholds
+* Added ``datasource`` parameter to CloudWatch targets
+* Added support for auto panels ids to AlertList panel
+* Added support for fields value in Stat panel
+* Added ``alertName`` parameter to AlertList panel
+
+0.6.1 (2021-11-23)
 ==================
 
 * Added ImageIt panel (https://grafana.com/grafana/plugins/pierosavi-imageit-panel/)
@@ -16,6 +22,7 @@ Changes
 -------
 
 * Fix Text panel (and add tests)
+  **ATTENTION:** This might break panels generated for Grafana <8.0.6
 
 0.6.0 (2021-10-26)
 ===================

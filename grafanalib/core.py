@@ -98,6 +98,7 @@ TIMESERIES_TYPE = 'timeseries'
 WORLD_MAP_TYPE = 'grafana-worldmap-panel'
 IMAGEIT_TYPE = 'pierosavi-imageit-panel'
 NEWS_TYPE = 'news'
+HISTOGRAM_TYPE = 'histogram'
 
 DEFAULT_FILL = 1
 DEFAULT_REFRESH = '10s'
@@ -381,6 +382,13 @@ class Repeat(object):
     direction = attr.ib(default=None)
     variable = attr.ib(default=None)
     maxPerRow = attr.ib(default=None, validator=is_valid_max_per_row)
+
+    def to_json_data(self):
+        return {
+            'direction': self.direction,
+            'variable': self.variable,
+            'maxPerRow': self.maxPerRow,
+        }
 
 
 def is_valid_target(instance, attribute, value):
@@ -1013,6 +1021,17 @@ class AlertCondition(object):
     :param operator: One of ``OP_AND`` or ``OP_OR``. How this condition
         combines with other conditions.
     :param reducerType: RTYPE_*
+        Supported reducer types:
+        RTYPE_AVG = 'avg'
+        RTYPE_MIN = 'min'
+        RTYPE_MAX = 'max'
+        RTYPE_SUM = 'sum'
+        RTYPE_COUNT = 'count'
+        RTYPE_LAST = 'last'
+        RTYPE_MEDIAN = 'median'
+        RTYPE_DIFF = 'diff'
+        RTYPE_PERCENT_DIFF = 'percent_diff'
+        RTYPE_COUNT_NON_NULL = 'count_non_null'
     :param type: CTYPE_*
     """
 
@@ -1572,6 +1591,7 @@ class TimeSeries(Panel):
     :param tooltipMode: When you hover your cursor over the visualization, Grafana can display tooltips
         single (Default), multi, none
     :param unit: units
+    :param thresholdsStyleMode: thresholds style mode off (Default), area, line, line+area
     """
 
     axisPlacement = attr.ib(default='auto', validator=instance_of(str))
@@ -1595,6 +1615,7 @@ class TimeSeries(Panel):
     stacking = attr.ib(default={}, validator=instance_of(dict))
     tooltipMode = attr.ib(default='single', validator=instance_of(str))
     unit = attr.ib(default='', validator=instance_of(str))
+    thresholdsStyleMode = attr.ib(default='off', validator=instance_of(str))
 
     def to_json_data(self):
         return self.panel_json(
@@ -1625,6 +1646,9 @@ class TimeSeries(Panel):
                                 'tooltip': False,
                                 'viz': False,
                                 'legend': False
+                            },
+                            'thresholdsStyle': {
+                                'mode': self.thresholdsStyleMode
                             },
                         },
                         'mappings': self.mappings,
@@ -3420,7 +3444,6 @@ class Logs(Panel):
 @attr.s
 class Threshold(object):
     """Threshold for for panels
-    (https://grafana.com/docs/grafana/latest/panels/thresholds/)
 
     :param color: Color of threshold
     :param index: Index of color in panel
@@ -3460,7 +3483,6 @@ class Threshold(object):
 @attr.s
 class GraphThreshold(object):
     """Threshold for for Graph panel
-    (https://grafana.com/docs/grafana/latest/panels/thresholds/)
 
     :param colorMode: Color mode of the threshold, value can be `ok`, `warning`, `critical` or `custom`.
         If `custom` is selcted a lineColor and fillColor should be provided
@@ -3518,12 +3540,22 @@ class SeriesOverride(object):
     :param fill: Fill strength (0...10)
     :param color: Whether to change color to
     :param fillBelowTo: Alias of the other metric to fill below
+    :param zindex: Move things to front or background (-3...3)
+    :param dashed: Whether to dash the line
+    :param dashLength: Length of dashes (1..20)
+    :param spaceLength: Length of spaces betwee dashed
+    :param zindex: Move things to front or background
     """
     alias = attr.ib(validator=instance_of(str))
     bars = attr.ib(default=False, validator=instance_of(bool))
     lines = attr.ib(default=True, validator=instance_of(bool))
     yaxis = attr.ib(default=1, validator=attr.validators.in_([1, 2]))
     fill = attr.ib(default=1, validator=attr.validators.in_(range(11)))
+    zindex = attr.ib(default=0, validator=attr.validators.in_(range(-3, 4)))
+    dashes = attr.ib(default=False, validator=instance_of(bool))
+    dashLength = attr.ib(default=None, validator=attr.validators.in_([*range(1, 21), None]))
+    spaceLength = attr.ib(default=None, validator=attr.validators.in_([*range(1, 21), None]))
+
     color = attr.ib(default=None)
     fillBelowTo = attr.ib(
         default=None,
@@ -3539,6 +3571,10 @@ class SeriesOverride(object):
             'fill': self.fill,
             'color': self.color,
             'fillBelowTo': self.fillBelowTo,
+            'zindex': self.zindex,
+            'dashes': self.dashes,
+            'dashLength': self.dashLength,
+            'spaceLength': self.spaceLength,
         }
 
 
@@ -3701,6 +3737,67 @@ class StateTimeline(Panel):
                 'type': STATE_TIMELINE_TYPE,
             }
         )
+
+
+@attr.s
+class Histogram(Panel):
+    """Generates Histogram panel json structure
+    Grafana docs on Histogram panel: https://grafana.com/docs/grafana/latest/visualizations/histogram/#
+
+    :param bucketOffset: Bucket offset for none-zero-based buckets
+    :param bucketSize: Bucket size, default Auto
+    :param colorMode: Default thresholds
+    :param combine: Combine all series into a single histogram
+    :param fillOpacity: Controls the opacity of state regions, default 0.9
+    :param legendDisplayMode: refine how the legend appears, list, table or hidden
+    :param legendPlacement: bottom or top
+    :param lineWidth: Controls line width of state regions
+    :param mappings: To assign colors to boolean or string values, use Value mappings
+    :param overrides: To override the base characteristics of certain data
+    """
+    bucketOffset = attr.ib(default=0, validator=instance_of(int))
+    bucketSize = attr.ib(default=0, validator=instance_of(int))
+    colorMode = attr.ib(default='thresholds', validator=instance_of(str))
+    combine = attr.ib(default=False, validator=instance_of(bool))
+    fillOpacity = attr.ib(default=80, validator=instance_of(int))
+    legendDisplayMode = attr.ib(default='list', validator=instance_of(str))
+    legendPlacement = attr.ib(default='bottom', validator=instance_of(str))
+    lineWidth = attr.ib(default=0, validator=instance_of(int))
+    mappings = attr.ib(default=attr.Factory(list))
+    overrides = attr.ib(default=attr.Factory(list))
+
+    def to_json_data(self):
+        histogram = self.panel_json(
+            {
+                'fieldConfig': {
+                    'defaults': {
+                        'custom': {
+                            'lineWidth': self.lineWidth,
+                            'fillOpacity': self.fillOpacity
+                        },
+                        'color': {
+                            'mode': self.colorMode
+                        },
+                        'mappings': self.mappings
+                    },
+                    'overrides': self.overrides
+                },
+                'options': {
+                    'legend': {
+                        'displayMode': self.legendDisplayMode,
+                        'placement': self.legendPlacement
+                    },
+                    "bucketOffset": self.bucketOffset,
+                    "combine": self.combine,
+                },
+                'type': HISTOGRAM_TYPE,
+            }
+        )
+
+        if self.bucketSize > 0:
+            histogram['options']['bucketSize'] = self.bucketSize
+
+        return histogram
 
 
 @attr.s
